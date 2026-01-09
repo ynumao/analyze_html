@@ -1,4 +1,4 @@
-import { getBrowser } from './puppeteer';
+import * as cheerio from 'cheerio';
 
 export interface EvaluationData {
     title: string;
@@ -11,48 +11,61 @@ export interface EvaluationData {
 }
 
 export async function scrapeUrl(url: string): Promise<EvaluationData> {
-    const browser = await getBrowser();
-    const page = await browser.newPage();
-
-    // Set viewport to desktop first
-    await page.setViewport({ width: 1280, height: 800 });
-
+    const browserlessApiKey = process.env.BROWSERLESS_API_KEY || '2Tl89xqM7NGDdv5b07e8c6f1fe310c20b95b8c1d01ca59a21';
+    
     try {
-        await page.goto(url, { 
-            waitUntil: 'networkidle2',
-            timeout: 60000 
-        });
-        const ssl = url.startsWith('https://');
-
-        // Extract metadata
-        const title = await page.title();
-        const description = await page.$eval('meta[name="description"]', (el) => el.getAttribute('content') || '').catch(() => '');
-
-        // Extract H tags
-        const hTags = await page.evaluate(() => {
-            const tags: { level: number; text: string }[] = [];
-            for (let i = 1; i <= 6; i++) {
-                const elements = document.querySelectorAll(`h${i}`);
-                elements.forEach((el) => {
-                    tags.push({ level: i, text: el.textContent?.trim() || '' });
-                });
-            }
-            return tags;
+        // Use Browserless.io API for screenshot
+        const screenshotResponse = await fetch(`https://chrome.browserless.io/screenshot?token=${browserlessApiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: url,
+                options: {
+                    fullPage: false,
+                    type: 'png'
+                }
+            })
         });
 
-        // Get HTML snippet (first 1000 chars of body text)
-        const htmlSnippet = await page.evaluate(() => {
-            return document.body.innerText.substring(0, 1000);
-        });
+        if (!screenshotResponse.ok) {
+            throw new Error(`Browserless screenshot API error: ${screenshotResponse.statusText}`);
+        }
 
-        // Check mobile-friendly meta tag
-        const mobileFriendly = await page.$('meta[name="viewport"]').then(() => true).catch(() => false);
-
-        // Take screenshot
-        const screenshotBuffer = await page.screenshot({ fullPage: false, type: 'png' });
+        const screenshotBuffer = await screenshotResponse.arrayBuffer();
         const screenshot = Buffer.from(screenshotBuffer).toString('base64');
 
-        await browser.close();
+        // Use Browserless.io API for content scraping
+        const contentResponse = await fetch(`https://chrome.browserless.io/content?token=${browserlessApiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: url
+            })
+        });
+
+        if (!contentResponse.ok) {
+            throw new Error(`Browserless content API error: ${contentResponse.statusText}`);
+        }
+
+        const htmlContent = await contentResponse.text();
+        
+        // Parse HTML with Cheerio
+        const $ = cheerio.load(htmlContent);
+
+        const title = $('title').text() || '';
+        const description = $('meta[name="description"]').attr('content') || '';
+        
+        // Extract H tags
+        const hTags: { level: number; text: string }[] = [];
+        for (let i = 1; i <= 6; i++) {
+            $(`h${i}`).each((_, el) => {
+                hTags.push({ level: i, text: $(el).text().trim() });
+            });
+        }
+
+        const ssl = url.startsWith('https://');
+        const mobileFriendly = $('meta[name="viewport"]').length > 0;
+        const htmlSnippet = $('body').text().substring(0, 1000);
 
         return {
             title,
@@ -64,7 +77,6 @@ export async function scrapeUrl(url: string): Promise<EvaluationData> {
             screenshot,
         };
     } catch (error) {
-        await browser.close();
         throw error;
     }
 }
