@@ -12,14 +12,12 @@ export async function analyzeWithAI(data: EvaluationData, apiKey: string) {
         'gemini-1.5-pro'
     ];
 
-    let lastError: any = null;
+    let lastError: Error | null = null;
 
     for (const modelName of modelsToTry) {
         try {
             console.log(`[Diagnostic] Attempting analysis with model: ${modelName}`);
             const model = genAI.getGenerativeModel({ model: modelName });
-            // Note: If using v1 specifically is needed, some SDK versions allow version in the model name or via headers, 
-            // but let's stick to valid model names first.
 
             const prompt = `
 あなたはプロのWebマーケターおよびUI/UXデザイナーです。提供されたウェブサイトのデータ（テキスト、構造、スクリーンショット情報）に基づき、以下の5つの評価軸で詳細な評価を行ってください。
@@ -76,10 +74,10 @@ export async function analyzeWithAI(data: EvaluationData, apiKey: string) {
                 return JSON.parse(jsonMatch[0]);
             }
             throw new Error('Failed to parse AI response');
-        } catch (error: any) {
-            const errorMessage = error.message || '';
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             console.warn(`[Diagnostic] Failed with ${modelName}: ${errorMessage}`);
-            lastError = error;
+            lastError = error instanceof Error ? error : new Error(String(error));
 
             // If it's a 429 (Rate Limit/Quota), we might want to inform the user specifically
             if (errorMessage.includes('429')) {
@@ -88,7 +86,7 @@ export async function analyzeWithAI(data: EvaluationData, apiKey: string) {
             }
 
             if (errorMessage.includes('404')) continue;
-
+            
             if (errorMessage.includes('400') || errorMessage.includes('403')) {
                 throw error;
             }

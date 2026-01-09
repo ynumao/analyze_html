@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Loader2, Target, Info, Upload } from 'lucide-react';
+import { ArrowRight, Target, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface EvaluationResult {
@@ -45,8 +45,8 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error || '評価中にエラーが発生しました');
 
       setResult(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
     } finally {
       setIsLoading(false);
     }
@@ -158,6 +158,7 @@ export default function Home() {
 
             <div className="result-card" style={{ marginTop: '2rem' }}>
               <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.5rem' }}>分析対象のスクリーンショット</h3>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={`data:image/png;base64,${result.screenshot}`}
                 alt="Target Screenshot"

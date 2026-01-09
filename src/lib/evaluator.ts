@@ -3,17 +3,11 @@ import { getBrowser } from './puppeteer';
 export interface EvaluationData {
     title: string;
     description: string;
-    hTags: { level: string; text: string }[];
-    images: { alt: string; src: string }[];
-    links: { text: string; href: string }[];
-    mobileFriendly: boolean;
+    hTags: { level: number; text: string }[];
     ssl: boolean;
-    performance: {
-        lcp: number | null;
-        cls: number | null;
-    };
-    screenshot: string; // base64
+    mobileFriendly: boolean;
     htmlSnippet: string;
+    screenshot: string;
 }
 
 export async function scrapeUrl(url: string): Promise<EvaluationData> {
@@ -24,72 +18,50 @@ export async function scrapeUrl(url: string): Promise<EvaluationData> {
     await page.setViewport({ width: 1280, height: 800 });
 
     try {
-        const response = await page.goto(url, {
+        await page.goto(url, { 
             waitUntil: 'networkidle2',
-            timeout: 60000
+            timeout: 60000 
         });
         const ssl = url.startsWith('https://');
 
-        // Basic SEO and DOM info
-        const data = await page.evaluate(() => {
-            const getHTags = () => {
-                const tags: { level: string; text: string }[] = [];
-                for (let i = 1; i <= 6; i++) {
-                    document.querySelectorAll(`h${i}`).forEach(h => {
-                        tags.push({ level: `h${i}`, text: h.textContent?.trim() || '' });
-                    });
-                }
-                return tags;
-            };
+        // Extract metadata
+        const title = await page.title();
+        const description = await page.$eval('meta[name="description"]', (el) => el.getAttribute('content') || '').catch(() => '');
 
-            const getImages = () => {
-                return Array.from(document.querySelectorAll('img')).map(img => ({
-                    alt: img.alt || '',
-                    src: img.src || '',
-                }));
-            };
-
-            const getLinks = () => {
-                return Array.from(document.querySelectorAll('a')).map(a => ({
-                    text: a.textContent?.trim() || '',
-                    href: a.href || '',
-                }));
-            };
-
-            return {
-                title: document.title,
-                description: document.querySelector('meta[name="description"]')?.getAttribute('content') || '',
-                hTags: getHTags(),
-                images: getImages(),
-                links: getLinks(),
-                // Simple mobile check: check for viewport meta tag
-                mobileFriendly: !!document.querySelector('meta[name="viewport"]'),
-            };
+        // Extract H tags
+        const hTags = await page.evaluate(() => {
+            const tags: { level: number; text: string }[] = [];
+            for (let i = 1; i <= 6; i++) {
+                const elements = document.querySelectorAll(`h${i}`);
+                elements.forEach((el) => {
+                    tags.push({ level: i, text: el.textContent?.trim() || '' });
+                });
+            }
+            return tags;
         });
 
-        // Capture screenshot (base64)
-        const screenshot = await page.screenshot({ encoding: 'base64', fullPage: false }) as string;
-
-        // Get a snippet of the HTML (main content)
+        // Get HTML snippet (first 1000 chars of body text)
         const htmlSnippet = await page.evaluate(() => {
-            const body = document.querySelector('body')?.innerText.substring(0, 5000) || '';
-            return body;
+            return document.body.innerText.substring(0, 1000);
         });
 
-        // Performance (very basic)
-        const metrics = await page.metrics();
+        // Check mobile-friendly meta tag
+        const mobileFriendly = await page.$('meta[name="viewport"]').then(() => true).catch(() => false);
+
+        // Take screenshot
+        const screenshotBuffer = await page.screenshot({ fullPage: false, type: 'png' });
+        const screenshot = screenshotBuffer.toString('base64');
 
         await browser.close();
 
         return {
-            ...data,
+            title,
+            description,
+            hTags,
             ssl,
-            performance: {
-                lcp: null, // Puppeteer doesn't easily give CWV without more complex setup, but maybe enough for now
-                cls: null,
-            },
-            screenshot,
+            mobileFriendly,
             htmlSnippet,
+            screenshot,
         };
     } catch (error) {
         await browser.close();
