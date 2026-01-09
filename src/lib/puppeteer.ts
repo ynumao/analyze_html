@@ -17,7 +17,8 @@ export async function getBrowser() {
       ],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
+      // Fix type error: cast to any to match expected boolean | "shell" | undefined
+      headless: chromium.headless as any,
     });
   } else {
     // Local development (Mac)
