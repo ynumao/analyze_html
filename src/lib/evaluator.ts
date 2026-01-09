@@ -50,7 +50,7 @@ export async function scrapeUrl(url: string): Promise<EvaluationData> {
 
         // Take screenshot
         const screenshotBuffer = await page.screenshot({ fullPage: false, type: 'png' });
-        const screenshot = screenshotBuffer.toString('base64');
+        const screenshot = Buffer.from(screenshotBuffer).toString('base64');
 
         await browser.close();
 
