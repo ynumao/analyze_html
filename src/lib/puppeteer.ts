@@ -3,18 +3,9 @@ import chromium from '@sparticuz/chromium';
 
 export async function getBrowser() {
   if (process.env.NODE_ENV === 'production') {
-    // Vercel / Production environment (Amazon Linux 2023)
-    // Using full @sparticuz/chromium for complete library shims
-    
+    // Vercel / Production environment (Pinning to Node 18 / Amazon Linux 2 logic)
     return await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--no-zygote',
-      ],
+      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
