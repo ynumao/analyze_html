@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "Sonic AI Evaluator - Web & LP Analysis",
+    title: "LP分析ツール",
     description: "Evaluate your website or landing page with AI.",
 };
 
